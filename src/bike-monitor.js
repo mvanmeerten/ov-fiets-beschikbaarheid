@@ -4,7 +4,7 @@ const fs = require('fs');
 
 // Configuration
 const STATION_CODE = 'asd002'; // Amsterdam Centraal Oost
-const BIKE_THRESHOLD = 120;
+const BIKE_THRESHOLD = 20;
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const STATE_FILE = 'notification_state.json';
 
@@ -64,10 +64,10 @@ function isInMonitoringWindow() {
     const currentMinutes = hour * 60 + minute;
 
     // Monday=1, Wednesday=3, Thursday=4
-    const isTargetDay = day === 1 || day === 3 || day === 4 || day === 5;
+    const isTargetDay = day === 1 || day === 3 || day === 4;
 
     // 8:30 AM = 510 minutes, 9:30 AM = 570 minutes
-    const isInTimeWindow = currentMinutes >= 510 && currentMinutes <= 770;
+    const isInTimeWindow = currentMinutes >= 510 && currentMinutes <= 570;
 
     console.log(`Current time: ${getCurrentTimeInEurope()}, Day: ${day}, Target day: ${isTargetDay}, In time window: ${isInTimeWindow}`);
 
