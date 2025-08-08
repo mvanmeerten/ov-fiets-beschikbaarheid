@@ -1,0 +1,100 @@
+name: Bike Availability Monitor
+
+on:
+  schedule:
+    # Monday, Wednesday, Thursday at 8:30 AM CEST/CET
+    # Note: GitHub Actions uses UTC, so we use 6:30 UTC (CEST-2) and 7:30 UTC (CET-1)
+    # The script handles timezone conversion internally
+    - cron: '30 6 * * 1,3,4'  # Summer time (CEST)
+    - cron: '30 7 * * 1,3,4'  # Winter time (CET)
+
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  monitor-bikes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Create state directory
+        run: mkdir -p state
+
+      - name: Download previous state
+        uses: actions/download-artifact@v4
+        with:
+          name: notification-state
+          path: state/
+        continue-on-error: true
+
+      - name: Copy state file to working directory
+        run: |
+          if [ -f state/notification_state.json ]; then
+            cp state/notification_state.json notification_state.json
+            echo "Previous state loaded"
+          else
+            echo "No previous state found"
+          fi
+
+      - name: Run initial check (8:30)
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: node bike-monitor.js
+
+      - name: Wait and run additional checks every minute until 9:30
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          # Run checks every minute for 60 minutes (8:30 to 9:30)
+          for i in {1..60}; do
+            echo "Check $i/60 - $(date)"
+            sleep 60
+            node bike-monitor.js
+          
+            # Stop early if threshold was hit (check state file)
+            if [ -f notification_state.json ]; then
+              if grep -q '"bikesWentBelowThreshold":true' notification_state.json; then
+                echo "Threshold hit, continuing for recovery monitoring only"
+              fi
+            fi
+          done
+
+      - name: Upload state for next run
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-state
+          path: notification_state.json
+        retention-days: 7
+        if: always()
+
+      - name: Cleanup old artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Keep only the latest 3 artifacts to avoid storage buildup
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            });
+            
+            const stateArtifacts = artifacts.data.artifacts
+              .filter(artifact => artifact.name === 'notification-state')
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            
+            // Delete old artifacts (keep latest 3)
+            for (let i = 3; i < stateArtifacts.length; i++) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: stateArtifacts[i].id,
+              });
+            }
+        continue-on-error: true

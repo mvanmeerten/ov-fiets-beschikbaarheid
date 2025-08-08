@@ -1,0 +1,22 @@
+{
+  "name": "ov-fiets-monitor",
+  "version": "1.0.0",
+  "description": "Monitor OV-fiets bike availability and send Slack notifications",
+  "main": "bike-monitor.js",
+  "scripts": {
+    "start": "node bike-monitor.js",
+    "test": "node test-monitor.js"
+  },
+  "keywords": [
+    "ov-fiets",
+    "bike",
+    "monitoring",
+    "slack",
+    "notifications"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
