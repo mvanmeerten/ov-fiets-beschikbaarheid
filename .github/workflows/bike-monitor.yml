@@ -71,7 +71,6 @@ jobs:
         with:
           name: notification-state
           path: notification_state.json
-        retention-days: 7
         if: always()
 
       - name: Cleanup old artifacts
