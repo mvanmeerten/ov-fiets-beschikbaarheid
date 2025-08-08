@@ -46,7 +46,7 @@ jobs:
       - name: Run initial check (8:30)
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: node bike-monitor.js
+        run: node src/bike-monitor.js
 
       - name: Wait and run additional checks every minute until 9:30
         env:
@@ -56,7 +56,7 @@ jobs:
           for i in {1..60}; do
             echo "Check $i/60 - $(date)"
             sleep 60
-            node bike-monitor.js
+            node src/bike-monitor.js
           
             # Stop early if threshold was hit (check state file)
             if [ -f notification_state.json ]; then
