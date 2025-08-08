@@ -60,7 +60,7 @@ Run the test script to verify everything works:
 export SLACK_WEBHOOK_URL="your_webhook_url_here"
 
 # Run the test
-node test-monitor.js
+node src/test-monitor.js
 ```
 
 Or test manually in GitHub Actions:

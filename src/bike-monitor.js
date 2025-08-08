@@ -1,9 +1,10 @@
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 
 // Configuration
-const STATION_CODE = 'ASD002'; // Amsterdam Centraal Oost
-const BIKE_THRESHOLD = 20;
+const STATION_CODE = 'asd002'; // Amsterdam Centraal Oost
+const BIKE_THRESHOLD = 120;
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const STATE_FILE = 'notification_state.json';
 
@@ -63,10 +64,10 @@ function isInMonitoringWindow() {
     const currentMinutes = hour * 60 + minute;
 
     // Monday=1, Wednesday=3, Thursday=4
-    const isTargetDay = day === 1 || day === 3 || day === 4;
+    const isTargetDay = day === 1 || day === 3 || day === 4 || day === 5;
 
     // 8:30 AM = 510 minutes, 9:30 AM = 570 minutes
-    const isInTimeWindow = currentMinutes >= 510 && currentMinutes <= 570;
+    const isInTimeWindow = currentMinutes >= 510 && currentMinutes <= 770;
 
     console.log(`Current time: ${getCurrentTimeInEurope()}, Day: ${day}, Target day: ${isTargetDay}, In time window: ${isInTimeWindow}`);
 
@@ -90,7 +91,7 @@ async function fetchBikeData() {
     return new Promise((resolve, reject) => {
         const url = 'http://fiets.openov.nl/locaties.json';
 
-        https.get(url, (res) => {
+        http.get(url, (res) => {
             let data = '';
 
             res.on('data', (chunk) => {
@@ -102,7 +103,7 @@ async function fetchBikeData() {
                     const jsonData = JSON.parse(data);
 
                     // Find our station
-                    const station = jsonData.find(loc => loc.stationCode === STATION_CODE);
+                    const station = jsonData['locaties'][STATION_CODE];
 
                     if (!station) {
                         reject(new Error(`Station ${STATION_CODE} not found in API response`));
@@ -110,13 +111,13 @@ async function fetchBikeData() {
                     }
 
                     console.log(`Found station: ${station.name} (${station.stationCode})`);
-                    console.log(`Available bikes: ${station.availableBikes}/${station.capacity}`);
+                    console.log(`Available bikes: ${station.extra.rentalBikes}`);
 
                     resolve({
                         stationName: station.name,
-                        availableBikes: station.availableBikes,
-                        capacity: station.capacity,
-                        fetchTime: new Date().toISOString()
+                        availableBikes: parseInt(station.extra.rentalBikes),
+                        fetchTime: new Date().toISOString(),
+                        lastUpdated: new Date(station.extra.fetchTime * 1000).toISOString(),
                     });
 
                 } catch (error) {
@@ -217,9 +218,9 @@ async function checkBikes() {
 
         // Check for low availability (< 20 bikes)
         if (currentBikes < BIKE_THRESHOLD && !state.bikesWentBelowThreshold) {
-            const message = `⚠️ *Low bike availability at ${bikeData.stationName}*\n` +
-                `Only *${currentBikes}* bikes available (threshold: ${BIKE_THRESHOLD})\n` +
-                `Total capacity: ${bikeData.capacity}\n` +
+            const message = `⚠️ *Weinig fietsen bij ${bikeData.stationName}*\n` +
+                `Maar *${currentBikes}* fietsen beschikbaar (threshold: ${BIKE_THRESHOLD})\n` +
+                `Dat wordt lopen!\n` +
                 `Time: ${getCurrentTimeInEurope()}`;
 
             await sendSlackNotification(message, '#ff0000');
@@ -238,9 +239,8 @@ async function checkBikes() {
             state.lastBikeCount !== null &&
             state.lastBikeCount < BIKE_THRESHOLD) {
 
-            const message = `✅ *Bikes available again at ${bikeData.stationName}*\n` +
-                `Now *${currentBikes}* bikes available\n` +
-                `Total capacity: ${bikeData.capacity}\n` +
+            const message = `✅ *Er zijn weer fietsen beschikbaar bij ${bikeData.stationName}*\n` +
+                `Nu *${currentBikes}* fietsen beschikbaar\n` +
                 `Time: ${getCurrentTimeInEurope()}`;
 
             await sendSlackNotification(message, '#00ff00');
@@ -276,6 +276,11 @@ async function checkBikes() {
         }
     }
 }
+
+// Export for testing
+module.exports = {
+    fetchBikeData
+};
 
 // Run the check
 if (require.main === module) {

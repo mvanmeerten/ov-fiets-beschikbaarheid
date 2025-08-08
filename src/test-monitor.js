@@ -1,59 +1,12 @@
 // Test script for the bike monitor
 // This bypasses time restrictions for testing purposes
 
+const {fetchBikeData} = require("./bike-monitor");
 const https = require('https');
 
-const STATION_CODE = 'ASD002';
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
-async function testBikeAPI() {
-    console.log('🧪 Testing bike API...');
-
-    return new Promise((resolve, reject) => {
-        const url = 'http://fiets.openov.nl/locaties.json';
-
-        https.get(url, (res) => {
-            let data = '';
-
-            res.on('data', (chunk) => {
-                data += chunk;
-            });
-
-            res.on('end', () => {
-                try {
-                    const jsonData = JSON.parse(data);
-                    console.log(`✅ API responded with ${jsonData.length} locations`);
-
-                    const station = jsonData.find(loc => loc.stationCode === STATION_CODE);
-
-                    if (station) {
-                        console.log(`✅ Found target station: ${station.name}`);
-                        console.log(`📊 Available bikes: ${station.availableBikes}/${station.capacity}`);
-                        console.log(`🕐 Last updated: ${station.lastUpdate || 'N/A'}`);
-                        resolve(station);
-                    } else {
-                        console.log(`❌ Station ${STATION_CODE} not found`);
-                        console.log('Available stations:');
-                        jsonData.slice(0, 5).forEach(loc => {
-                            console.log(`  - ${loc.stationCode}: ${loc.name}`);
-                        });
-                        reject(new Error('Station not found'));
-                    }
-
-                } catch (error) {
-                    console.error('❌ Failed to parse API response:', error.message);
-                    reject(error);
-                }
-            });
-
-        }).on('error', (error) => {
-            console.error('❌ API request failed:', error.message);
-            reject(error);
-        });
-    });
-}
-
-async function testSlackNotification() {
+async function testSlackNotification(station) {
     console.log('\n🧪 Testing Slack notification...');
 
     if (!SLACK_WEBHOOK_URL) {
@@ -68,7 +21,11 @@ async function testSlackNotification() {
                 title: '🧪 Test Notification',
                 text: '✅ Your bike monitor is working correctly!\n' +
                     'This is a test message from your OV-fiets monitoring system.\n' +
-                    `Time: ${new Date().toLocaleString('en-US', {timeZone: 'Europe/Amsterdam'})}`,
+                    `Time: ${new Date().toLocaleString('en-US', {timeZone: 'Europe/Amsterdam'})}\n` +
+                    `Station: ${station.stationName}\n` +
+                    `Available bikes: ${station.availableBikes}\n` +
+                    `Fetch time: ${station.fetchTime}\n` +
+                    `Last updated: ${station.lastUpdated}`,
                 footer: 'Bike Monitor Test',
                 ts: Math.floor(Date.now() / 1000)
             }]
@@ -148,11 +105,11 @@ async function runTests() {
         testTimeZone();
 
         // Test API
-        const stationData = await testBikeAPI();
+        const stationData = await fetchBikeData();
 
         // Test Slack (only if webhook is configured)
         if (SLACK_WEBHOOK_URL) {
-            await testSlackNotification();
+            await testSlackNotification(stationData);
         }
 
         console.log('\n✅ All tests completed successfully!');
