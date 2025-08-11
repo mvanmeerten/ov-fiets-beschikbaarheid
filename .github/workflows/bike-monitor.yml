@@ -1,12 +1,8 @@
 name: Bike Availability Monitor
 
 on:
-  schedule:
-    # Monday, Wednesday, Thursday at 8:30 AM CEST/CET
-    # Note: GitHub Actions uses UTC, so we use 6:30 UTC (CEST-2) and 7:30 UTC (CET-1)
-    # The script handles timezone conversion internally
-    - cron: '30 6 * * 1,3,4'  # Summer time (CEST)
-    - cron: '30 7 * * 1,3,4'  # Winter time (CET)
+  repository_dispatch:
+    types: [bike-check]
 
   # Allow manual triggering for testing
   workflow_dispatch:
